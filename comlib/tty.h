@@ -16,14 +16,19 @@ struct TTY {
     virtual ~TTY();
 
     bool IsOK() const;
+    void setCheckData(bool);
 
     bool Connect(LPCWSTR port, int baudrate);
     void Disconnect();
 
     virtual void Write(const vector<unsigned char>& data);
-    virtual void Read(vector<unsigned char>& data);
+    virtual void Read();
+    virtual void WriteAndRead(char* data);
+
+private:
 
     HANDLE m_Handle;
+    bool checkData;
 
 };
 
