@@ -5,22 +5,24 @@
 #include <thread>
 #include <functional>
 
-using namespace std;
 
 static int TIMEOUT = 1000;
 
 TTY::TTY() {
 	m_Handle = INVALID_HANDLE_VALUE;
-	checkData = true;
+	for (int i = 0; i < EVENT_NUMBER; i++) {
+		events[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
+	}
 }
 
 TTY::~TTY() {
 	Disconnect();
+	for (int i = 0; i < EVENT_NUMBER; i++) {
+		CloseHandle(events[i]);
+	}
+	readHandle->detach();
 }
 
-void TTY::setCheckData(bool val) {
-	checkData = val;
-}
 
 bool TTY::IsOK() const {
 	return m_Handle != INVALID_HANDLE_VALUE;
@@ -29,6 +31,7 @@ bool TTY::IsOK() const {
 bool TTY::Connect(LPCWSTR port, int baudrate) {
 
 	Disconnect();
+	bool result;
 
 	m_Handle =
 		CreateFile(
@@ -42,7 +45,7 @@ bool TTY::Connect(LPCWSTR port, int baudrate) {
 
 
 	if (m_Handle != INVALID_HANDLE_VALUE) {
-		std::wcout << "Port " << *port << " opened";
+		std::wcout << "Port " << port << " opened" << std::endl;
 	}
 	else {
 		DWORD errCode;
@@ -54,15 +57,17 @@ bool TTY::Connect(LPCWSTR port, int baudrate) {
 		std::cout << "some other error occurred.\t" << errCode << std::endl;
 		return false;
 	}
-
-	SetCommMask(m_Handle, EV_RXCHAR);
+	result = SetCommMask(m_Handle, EV_RXCHAR | EV_TXEMPTY);
+	if (!result) {
+		std::cout << "Error set mask " << std::endl;
+	}
 	SetupComm(m_Handle, 1500, 1500);
 
 	COMMTIMEOUTS CommTimeOuts;
-	CommTimeOuts.ReadIntervalTimeout = 1;
-	CommTimeOuts.ReadTotalTimeoutMultiplier = 1;
-	CommTimeOuts.ReadTotalTimeoutConstant = 1;
-	CommTimeOuts.WriteTotalTimeoutMultiplier = 0;
+	CommTimeOuts.ReadIntervalTimeout = 20;
+	CommTimeOuts.ReadTotalTimeoutMultiplier = 10;
+	CommTimeOuts.ReadTotalTimeoutConstant = 70;
+	CommTimeOuts.WriteTotalTimeoutMultiplier = 4;
 	CommTimeOuts.WriteTotalTimeoutConstant = TIMEOUT;
 
 	if (!SetCommTimeouts(m_Handle, &CommTimeOuts)) {
@@ -114,7 +119,7 @@ void TTY::Disconnect() {
 
 }
 
-void TTY::Write(const vector<unsigned char>& data) {
+void TTY::Write(const std::vector<unsigned char>& data) {
 
 	if (m_Handle == INVALID_HANDLE_VALUE) {
 		throw TTYException();
@@ -131,7 +136,9 @@ void TTY::Write(const vector<unsigned char>& data) {
 	//FlushFileBuffers(m_Handle);
 
 }
-// TTY::Read info
+
+
+// TTY::Read function
 void TTY::Read() {
 
 
@@ -139,105 +146,209 @@ void TTY::Read() {
 		throw TTYException();
 	}
 
-	DWORD dwRead;
+	DWORD dwRead, temp, btr;
 	OVERLAPPED osReader = { 0 };
+	COMSTAT comstat;
 
 	osReader.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
-	char data[100];
+	char data[500];
 
 	if (osReader.hEvent == NULL) {
 		std::cout << "Error crate osReader event" << std::endl;
 		throw TTYException();
 	}
 
-	//unsigned char* buf = &data[0];
-	//DWORD READ_BUF_SIZE = (DWORD)data.size();
+	HANDLE portEvents[2];
+
+
+	portEvents[0] = osReader.hEvent;
+	portEvents[1] = events[STOP_PORT_READ_EVENT];
 
 	unsigned long wait = 0, read = 0, state = 0;
 
+	bool w;
 
-	if (SetCommMask(m_Handle, EV_RXCHAR)) {
+	SetEvent(events[START_PORT_READ_EVENT]);
+
+	while (true) {
+		w = WaitForSingleObject(events[START_PORT_READ_EVENT], 0);
+		if (w != WAIT_OBJECT_0) {
+			std::cout << "Wait for begin working " << std::endl;
+			w = WaitForSingleObject(events[START_PORT_READ_EVENT], INFINITE);
+			SetEvent(osReader.hEvent);
+			std::cout << "Stopped waiting " << std::endl;
+		}
+		std::cout << "Begin to listen " << std::endl;
+
+
 		while (true) {
 
+
+			//std::cout << "Listen to port in Read()..." << std::endl;
 			WaitCommEvent(m_Handle, &state, &osReader);
-			wait = WaitForSingleObject(osReader.hEvent, INFINITE);
-			std::cout << "Got wait " << wait << std::endl;
-			if (!checkData) {
-				std::cout << "Data reading locked" << std::endl;
-				continue;
-			}
-
+			wait = WaitForMultipleObjects(2, portEvents, FALSE, INFINITE);
+			//wait = WaitForSingleObject(osReader.hEvent, INFINITE);
 			if (wait == WAIT_OBJECT_0) {
-				//begin read data
-				ReadFile(m_Handle, data, 99, &dwRead, &osReader);
-				wait = WaitForSingleObject(osReader.hEvent, 100);
-				std::cout << "Got wait 2: " << wait << std::endl;
+				//std::cout << "Got wait " << wait << " Got state " << state << std::endl;
+				if (GetOverlappedResult(m_Handle, &osReader, &read, FALSE)) {
 
-				if (wait == WAIT_OBJECT_0) {
-					if (GetOverlappedResult(m_Handle, &osReader, &read, FALSE));
+					if ((state & EV_RXCHAR) != 0) {
+						ClearCommError(m_Handle, &temp, &comstat);               //нужно заполнить структуру COMSTAT
+						btr = comstat.cbInQue;                                  //и получить из неё количество принятых байтов
+						if (btr)                                                 //если действительно есть байты для чтения
+						{
+							w = ReadFile(m_Handle, data, btr, &dwRead, &osReader);    //прочитать байты из порта в буфер программы
+							data[dwRead] = 0;
+							std::cout << "TTY::Read()  " << data << std::endl;
+						}
+					}
+
 				}
-				data[dwRead] = 0;
-				std::cout << "TTY::Read()  " << data << std::endl;
-				ResetEvent(osReader.hEvent);
+			}
+			else if (wait == WAIT_OBJECT_0 + 1) {
+				std::cout << "Got wait 1 for BREAK!!!!!!!!!!!" << wait << std::endl;
+				CancelIoEx(m_Handle, &osReader);
+				break;
+			}
+			else {
+				std::cout << "Got unknown wait" << wait << std::endl;
 			}
 
-
-			Sleep(500);
 		}
-
-
 	}
-
-}
-
-// TTY::Read info
-void TTY::WriteAndRead(char* data) {
-	DWORD dwRead;
-	BOOL res;
-	res = ReadFile(m_Handle, data, 499, &dwRead, NULL);
-	if (!res) {
-		std::cout << "Got error in WriteAndRead " << GetLastError() << std::endl;
-	}
-	cout << "Got result in WriteAnd Read " << res << std::endl;
-	data[dwRead] = 0;
 }
 
 
-int main(int argc, char* argv[])
-{
-	TTY tty;
-	if (!tty.Connect(L"\\\\.\\COM2", CBR_115200)) {
-		return 1;
+// TTY::WriteAndRead
+HRESULT TTY::WriteAndRead(char* data) {
+	std::cout << "-------------------------------------------------------\n";
+	DWORD dwRead, temp, btr;
+	BOOL result;
+
+
+	OVERLAPPED osReader = { 0 };
+	COMSTAT comstat;
+	DWORD read;
+	osReader.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+
+	if (osReader.hEvent == NULL) {
+		std::cout << "Error crate osReader event" << std::endl;
+		throw TTYException();
 	}
-
-	char buff[500];
-
-	std::thread th(&TTY::Read, std::ref(tty));
-
-	for (int i = 0; i < 10; i++) {
+	unsigned long state = 0;
 
 
+	SetEvent(events[STOP_PORT_READ_EVENT]);
+	ResetEvent(events[START_PORT_READ_EVENT]);
 
-		//if (tty.Read(buff)) {
-		//	std::cout << "Got result on step: " << i << " " << buff << std::endl; //output text
-		//}
-		//else
-		//{
-		//	std::cout << "No result on step: " << i << std::endl; //output t
-		//}
-		if (i > 3 && i < 7) {
-			tty.setCheckData(false);
-			tty.WriteAndRead(buff);
-			std::cout << "Make write read " << i << " " << buff << std::endl; //output t
+
+	CHAR buffer[5]{ 'T', 'e', 's' ,'t', '\n' };
+	DWORD dwBytesWritten = 5;
+	DWORD dwErrorFlags;
+	std::cout << "Prepare to write " << std::endl;
+	result = WriteFile(m_Handle, buffer, dwBytesWritten, &dwBytesWritten, &osReader);
+	if (!result)
+	{
+		std::cout << "Got result in writing " << std::endl;
+		dwErrorFlags = GetLastError();
+		if (dwErrorFlags == ERROR_IO_PENDING)
+		{
+			std::cout << "Got result in ERROR_IO_PENDING" << std::endl;
+			WaitCommEvent(m_Handle, &state, &osReader);
+			result = WaitForSingleObject(osReader.hEvent, 300);
+			if (result == WAIT_OBJECT_0) {
+				std::cout << "Good wait result " << result << std::endl;
+				if (GetOverlappedResult(m_Handle, &osReader, &read, FALSE)) {
+					if ((state & EV_TXEMPTY) != 0) {
+						std::cout << "Write success";
+					}
+				}
+			}
+			else {
+				std::cout << "Bad wait result " << result << std::endl;
+			}
+
 		}
-
-		if (i > 7) tty.setCheckData(true);
-
-		std::cout << "Do some stuff " << i << std::endl; //output t
-		Sleep(1000);
-
+		else {
+			std::cout << "Got error in writing " << dwErrorFlags << std::endl;
+		}
 	}
-	th.detach();
-	return EXIT_SUCCESS;
+	else {
+
+		std::cout << "Got immediate writing result " << result << std::endl;
+	}
+	std::cout << "End writing " << std::endl;
+
+
+
+
+	WaitCommEvent(m_Handle, &state, &osReader);
+	result = WaitForSingleObject(osReader.hEvent, 300);
+	std::cout << "Result in writeAndRead " << result << std::endl;
+	if (result == WAIT_OBJECT_0) {
+		if (GetOverlappedResult(m_Handle, &osReader, &read, FALSE)) {
+
+			if ((state & EV_RXCHAR) != 0) {
+				ClearCommError(m_Handle, &temp, &comstat);               //нужно заполнить структуру COMSTAT
+				btr = comstat.cbInQue;                                  //и получить из неё количество принятых байтов
+				if (btr)                                                 //если действительно есть байты для чтения
+				{
+					result = ReadFile(m_Handle, data, btr, &dwRead, &osReader);    //прочитать байты из порта в буфер программы
+					data[dwRead] = 0;
+					std::cout << "TTY::WriteAndRead  " << data << std::endl;
+				}
+			}
+		}
+	}
+	else {
+		std::cout << "no data in port " << std::endl;
+		return S_FALSE;
+	}
+
+
+	ResetEvent(events[STOP_PORT_READ_EVENT]);
+	SetEvent(events[START_PORT_READ_EVENT]);
+	std::cout << "-------------------------------------------------------\n\n";
+
+	return S_OK;
 }
+
+void TTY::Start() {
+	readHandle = new std::thread(&TTY::Read, this);
+}
+
+
+//int main(int argc, char* argv[])
+//{
+//	TTY tty;
+//	if (!tty.Connect(L"\\\\.\\COM14", CBR_115200)) {
+//		return 1;
+//	}
+//
+//	tty.Start();
+//
+//	char buff[500];
+//
+//	for (int i = 2; i < 8; i++) {
+//
+//
+//
+//
+//		if (i > 3 && i < 7) {
+//			if (tty.WriteAndRead(buff) == S_OK) {
+//				std::cout << "Make write read " << i << " " << buff << std::endl; //output t
+//			}
+//			else {
+//				std::cout << "No result in client query" << std::endl;
+//			}
+//
+//		}
+//
+//		std::cout << "Do some stuff " << i << std::endl; //output t
+//		Sleep(1000);
+//
+//	}
+//	return EXIT_SUCCESS;
+//}

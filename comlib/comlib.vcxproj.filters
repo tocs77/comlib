@@ -21,10 +21,28 @@
     <ClCompile Include="tty.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="CommAsync\CommPortAsync.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="IComm\IComPort_Config.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tty.h">
       <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IComm\ICommInterface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CommAsync\CommPortAsync.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IComm\ICommInterface_Statistics.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IComm\IComPort_Config.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
