@@ -1,2 +1,5 @@
 debug
 .vs
+Log.txt
+*.VS.db
+.suo

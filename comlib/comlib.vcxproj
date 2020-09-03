@@ -154,6 +154,7 @@
     <ClCompile Include="comlib.cpp" />
     <ClCompile Include="CommAsync\CommPortAsync.cpp" />
     <ClCompile Include="IComm\IComPort_Config.cpp" />
+    <ClCompile Include="Logger\Logger.cpp" />
     <ClCompile Include="tty.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -161,6 +162,7 @@
     <ClInclude Include="IComm\ICommInterface.h" />
     <ClInclude Include="IComm\ICommInterface_Statistics.h" />
     <ClInclude Include="IComm\IComPort_Config.h" />
+    <ClInclude Include="Logger\Logger.h" />
     <ClInclude Include="tty.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

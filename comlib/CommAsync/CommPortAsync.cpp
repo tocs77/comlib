@@ -2,6 +2,7 @@
 //#pragma hdrstop
 #include <iostream>
 #include "CommPortAsync.h"
+#include "../Logger/Logger.h"
 
 //#pragma package(smart_init)
 //---------------------------------------------------------------------------
@@ -13,6 +14,8 @@ TCommPortAsync::TCommPortAsync()
 		events[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
 	}
 	readHandle = NULL;
+
+	Logger::logError("Finish com constructor");
 }
 
 
