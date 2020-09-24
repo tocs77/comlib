@@ -11,7 +11,8 @@
 //-----------------------------------------------------------------------------
 constexpr int STOP_PORT_READ_EVENT = 0;
 constexpr int  START_PORT_READ_EVENT = 1;
-constexpr int EVENT_NUMBER = 2;
+constexpr int  FINISH_PORT_READ_EVENT = 2;
+constexpr int EVENT_NUMBER = 3;
 
 class TCommPortAsync :
 	public ICommInterface,
@@ -22,14 +23,17 @@ private:
 	HANDLE hPort;
 	HANDLE events[EVENT_NUMBER];
 	std::thread* readHandle;
-	void Disconnect();
+	BOOL __stdcall Disconnect();
+	void __stdcall readLoop();
+
 public:
 	TCommPortAsync();
 	virtual ~TCommPortAsync();
 	BOOL __stdcall IsConnected();
 	BOOL __stdcall Connect();
-	HRESULT __stdcall WriteRead(BYTE const* const pOutBuffer, int iRequestLenght, BYTE* pInBuffer, int* pAnswerLength);
-	HRESULT __stdcall ReadUnsolicitedData(BYTE* pInBuffer, int* pDataLength);
+	void __stdcall Start();
+	HRESULT __stdcall WriteRead(BYTE const* const pOutBuffer, int iRequestLenght, BYTE* pInBuffer, DWORD* pAnswerLength);
+	HRESULT __stdcall ReadUnrequestedData(std::unique_ptr<BYTE*> pInBuffer, int* pDataLength);
 
 
 	/*

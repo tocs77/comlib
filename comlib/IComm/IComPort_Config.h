@@ -23,13 +23,17 @@ public:
 
 	IComPort_Config();
 	void setBaudrate(baudrates bd);
-	void setPort(int portNumber);
+	void setPort(INT portNumber);
+	void setWriteTimeOut(INT timeOutVal);
+	void setReadTimeOut(INT timeOutVal);
+
 
 protected:
 
 	baudrates baudrate;
 	std::wstring portNumber;
-
+	INT iWriteTimeOut;
+	INT iReadTimeOut;
 
 };
 //-----------------------------------------------------------------------------

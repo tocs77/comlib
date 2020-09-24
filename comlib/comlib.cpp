@@ -2,17 +2,27 @@
 
 #include "CommAsync/CommPortAsync.h"
 #include "Logger/Logger.h"
-//#include "CommAsync/CommPortAsync.cpp"
 
 
 int main() {
 	Logger::startLog("Log.txt");
 	TCommPortAsync tCom;
-	//tCom.setBaudrate(baudrates::BR_115200);
-	//tCom.setPort(14);
-	//tCom.Connect();
-	
-	Logger::logInfo("Something went wrong.");
+	tCom.setBaudrate(baudrates::BR_115200);
+	tCom.setPort(3);
+	tCom.Connect();
+	tCom.Start();
 
-	Logger::logWarning("Something went wrong.");
+	const int writeLenght = 5;
+
+	BYTE writeBuffer[writeLenght]{ 'T', 'e', 's' ,'t', '\n' };
+	DWORD dwBytesWritten = writeLenght;
+
+	BYTE* resultBuf = nullptr;
+	DWORD* resultLength = nullptr;
+
+	Sleep(2000);
+
+	Logger::logInfo("Делаем запрос в основном потоке");
+	tCom.WriteRead(writeBuffer, writeLenght, resultBuf, resultLength);
+	Sleep(3000);
 }

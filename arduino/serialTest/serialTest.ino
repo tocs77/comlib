@@ -1,7 +1,7 @@
 
 String inputString = "";         // a String to hold incoming data
 bool stringComplete = false;  // whether the string is complete
- int counter=0;
+int counter=0;
 void setup() {
   // initialize serial:
   Serial.begin(115200);
@@ -18,10 +18,10 @@ void loop() {
     inputString = "";
     stringComplete = false;
   }else {
-      Serial.print("No data # ");
-      Serial.println(counter);
+      Serial.write(counter);
+      //Serial.println(counter);
       counter++;
-      delay(300);
+      delay(1000);
     }
     
 }

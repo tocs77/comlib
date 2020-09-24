@@ -165,6 +165,7 @@ void TTY::Read() {
 	portEvents[0] = osReader.hEvent;
 	portEvents[1] = events[STOP_PORT_READ_EVENT];
 
+
 	unsigned long wait = 0, read = 0, state = 0;
 
 	bool w;
